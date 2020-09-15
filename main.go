@@ -1,40 +1,47 @@
 package main
 
 import (
-	"context"
+	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"os"
 	"strconv"
 	"strings"
-
-	mrpb "google.golang.org/genproto/googleapis/api/monitoredres"
-
-	"cloud.google.com/go/logging"
 )
 
-var logger *logging.Logger
+var projectID = os.Getenv("GOOGLE_CLOUD_PROJECT")
 
-var (
-	projectID = os.Getenv("GOOGLE_CLOUD_PROJECT")
-	service   = os.Getenv("GAE_SERVICE")
-	version   = os.Getenv("GAE_VERSION")
-)
+type entry struct {
+	Severity string `json:"severity"`
+	Message  string `json:"message"`
+	Trace    string `json:"logging.googleapis.com/trace"`
+}
+
+func (e entry) String() string {
+	if e.Severity == "" {
+		e.Severity = "INFO"
+	}
+	v, _ := json.Marshal(e)
+	return string(v)
+}
+
+func newEntry(severity, message, trace string) entry {
+	return entry{
+		Severity: severity,
+		Message:  message,
+		Trace:    trace,
+	}
+}
+
+func (e entry) toJSON() string {
+	v, _ := json.Marshal(e)
+	return string(v)
+}
 
 func main() {
-	client, err := logging.NewClient(context.Background(), fmt.Sprintf("projects/%s", os.Getenv("GOOGLE_CLOUD_PROJECT")))
-	if err != nil {
-		panic(err)
-	}
-	defer client.Close()
-	logger = client.Logger("app_logs", logging.CommonResource(&mrpb.MonitoredResource{
-		Type: "gae_app",
-		Labels: map[string]string{
-			"module_id":  service,
-			"project_id": projectID,
-			"version_id": version,
-		},
-	}))
+	log.SetOutput(os.Stdout)
+	log.SetFlags(0)
 
 	http.HandleFunc("/", handle)
 
@@ -52,32 +59,27 @@ func handle(w http.ResponseWriter, r *http.Request) {
 	status := r.FormValue("status")
 	statusCode, err := strconv.Atoi(status)
 	if err != nil {
-		logger.Log(logging.Entry{
-			Severity: logging.Warning,
-			Payload:  fmt.Sprintf("status %q can not parse to integer", status),
+		log.Println(entry{
+			Severity: "WARNING",
+			Message:  fmt.Sprintf("status %q can not parse to integer", status),
 			Trace:    traceID,
 		})
 		statusCode = http.StatusOK
 	}
 
-	logger.Log(logging.Entry{
-		Severity: logging.Info,
-		Payload:  "this is info logging!!!",
+	log.Println(entry{
+		Severity: "INFO",
+		Message:  "this is info logging by stdout!!",
 		Trace:    traceID,
 	})
-	logger.Log(logging.Entry{
-		Severity: logging.Warning,
-		Payload:  "this is info warining!!!",
+	log.Println(entry{
+		Severity: "WARNING",
+		Message:  "this is warn logging by stdout!!",
 		Trace:    traceID,
 	})
-	logger.Log(logging.Entry{
-		Severity: logging.Error,
-		Payload:  "this is info error!!!",
-		Trace:    traceID,
-	})
-	logger.Log(logging.Entry{
-		Severity: logging.Alert,
-		Payload:  "this is info alert!!!",
+	log.Println(entry{
+		Severity: "ALERT",
+		Message:  "this is alert logging by stdout!!",
 		Trace:    traceID,
 	})
 
