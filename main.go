@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 
 	mrpb "google.golang.org/genproto/googleapis/api/monitoredres"
@@ -48,6 +49,17 @@ func handle(w http.ResponseWriter, r *http.Request) {
 	traceID := strings.SplitN(r.Header.Get("X-Cloud-Trace-Context"), "/", 2)[0]
 	traceID = fmt.Sprintf("projects/%s/traces/%s", projectID, traceID)
 
+	status := r.FormValue("status")
+	statusCode, err := strconv.Atoi(status)
+	if err != nil {
+		logger.Log(logging.Entry{
+			Severity: logging.Warning,
+			Payload:  fmt.Sprintf("status %q can not parse to integer", status),
+			Trace:    traceID,
+		})
+		statusCode = http.StatusOK
+	}
+
 	logger.Log(logging.Entry{
 		Severity: logging.Info,
 		Payload:  "this is info logging!!!",
@@ -68,4 +80,6 @@ func handle(w http.ResponseWriter, r *http.Request) {
 		Payload:  "this is info alert!!!",
 		Trace:    traceID,
 	})
+
+	w.WriteHeader(statusCode)
 }
